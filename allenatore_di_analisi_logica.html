@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Allenatore di Analisi Logica</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0fdf4; /* Light green background */
+        }
+        
+        .word-token {
+            display: inline-block;
+            padding: 0.5rem 0.75rem;
+            margin: 0.25rem;
+            background-color: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 600;
+            color: #1e293b;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .word-token:hover {
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .word-token.selected {
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+            color: #1d4ed8;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+
+        .word-token.correct {
+            background-color: #dcfce7;
+            border-color: #22c55e;
+            color: #15803d;
+            cursor: default;
+        }
+
+        .word-token.correct:hover {
+            transform: none;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .word-token.error {
+            background-color: #fee2e2;
+            border-color: #ef4444;
+            color: #b91c1c;
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+        }
+
+        .category-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .category-btn:hover:not(:disabled) {
+            transform: scale(1.05);
+        }
+        
+        .category-btn:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .assigned-label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 0.25rem;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col">
+
+    <header class="bg-green-600 text-white shadow-md p-4">
+        <div class="container mx-auto flex justify-between items-center max-w-4xl">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <i class="fas fa-brain"></i> Analisi Logica Master
+            </h1>
+            <div class="flex gap-4 font-semibold bg-green-700 px-4 py-2 rounded-full shadow-inner">
+                <div>Punti: <span id="score-display" class="text-yellow-300">0</span></div>
+                <div>Livello: <span id="level-display" class="text-green-200">1</span></div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto p-4 max-w-4xl flex flex-col gap-6 mt-6">
+        
+        <!-- Istruzioni -->
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-start gap-4">
+            <div class="text-blue-500 text-2xl mt-1"><i class="fas fa-info-circle"></i></div>
+            <div>
+                <h2 class="font-bold text-lg mb-1">Come si gioca:</h2>
+                <p class="text-slate-600 text-sm">Seleziona una o più parole della frase e poi clicca sul ruolo logico corrispondente nei pulsanti qui sotto. Analizza tutta la frase per passare alla successiva!</p>
+            </div>
+        </div>
+
+        <!-- Area della frase -->
+        <div class="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 text-center relative overflow-hidden">
+            <!-- Decorative background element -->
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-green-50 rounded-full opacity-50 z-0"></div>
+            
+            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-6 relative z-10">Analizza questa frase:</h3>
+            
+            <div id="sentence-container" class="text-2xl leading-loose min-h-[120px] flex flex-wrap justify-center items-end relative z-10">
+                <!-- I token della frase verranno iniettati qui da JS -->
+            </div>
+            
+            <div id="feedback-message" class="h-8 mt-4 font-semibold text-lg transition-opacity duration-300 opacity-0 relative z-10">
+                Messaggio di feedback
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 shadow-lg border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 text-center">Assegna il ruolo logico:</h3>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="categories-container">
+                <!-- Prima riga: Elementi principali -->
+                <button class="category-btn bg-indigo-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Soggetto">
+                    <i class="fas fa-user"></i> Soggetto
+                </button>
+                <button class="category-btn bg-red-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Predicato Verbale">
+                    <i class="fas fa-running"></i> P. Verbale
+                </button>
+                <button class="category-btn bg-rose-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Predicato Nominale">
+                    <i class="fas fa-equals"></i> P. Nominale
+                </button>
+                <button class="category-btn bg-blue-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Complemento Oggetto">
+                    <i class="fas fa-bullseye"></i> C. Oggetto
+                </button>
+
+                <!-- Seconda riga: Complementi indiretti comuni -->
+                <button class="category-btn bg-amber-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Complemento di Specificazione">
+                    <span class="text-xs">di chi? di che cosa?</span> Specificazione
+                </button>
+                <button class="category-btn bg-green-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Complemento di Termine">
+                    <span class="text-xs">a chi? a che cosa?</span> Termine
+                </button>
+                <button class="category-btn bg-teal-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Complemento di Luogo">
+                    <i class="fas fa-map-marker-alt"></i> Luogo
+                </button>
+                <button class="category-btn bg-purple-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Complemento di Tempo">
+                    <i class="fas fa-clock"></i> Tempo
+                </button>
+                
+                 <!-- Terza riga: Altri complementi e attributi -->
+                 <button class="category-btn bg-orange-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Attributo/Apposizione">
+                    <i class="fas fa-tag"></i> Attr. / Appos.
+                </button>
+                <button class="category-btn bg-cyan-600 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Complemento di Mezzo">
+                    <i class="fas fa-tools"></i> Mezzo/Strum.
+                </button>
+                <button class="category-btn bg-fuchsia-600 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-fuchsia-700 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Complemento di Modo">
+                    <i class="fas fa-smile"></i> Modo
+                </button>
+                 <button class="category-btn bg-slate-500 text-white py-3 px-2 rounded-xl font-bold shadow-md hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1" data-role="Altro Complemento">
+                    <i class="fas fa-ellipsis-h"></i> Altro Compl.
+                </button>
+            </div>
+            
+            <div class="mt-4 flex justify-between items-center">
+                <button id="clear-selection-btn" class="text-slate-500 hover:text-slate-800 text-sm font-semibold py-2 px-4 rounded transition-colors hidden">
+                    <i class="fas fa-times"></i> Deseleziona
+                </button>
+                <button id="next-sentence-btn" class="ml-auto bg-green-500 text-white py-2 px-6 rounded-xl font-bold shadow-md hover:bg-green-600 transition-colors hidden animate-pulse flex items-center gap-2">
+                    Prossima Frase <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="level-complete-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transform scale-95 transition-transform duration-300" id="modal-content">
+            <div class="text-5xl text-yellow-400 mb-4 animate-bounce"><i class="fas fa-trophy"></i></div>
+            <h2 class="text-3xl font-bold text-slate-800 mb-2">Bravissimo!</h2>
+            <p class="text-slate-600 mb-6">Hai completato tutte le frasi di questo livello.</p>
+            <div class="bg-slate-100 rounded-lg p-4 mb-6">
+                <div class="text-sm text-slate-500 uppercase tracking-wide">Punteggio Finale</div>
+                <div class="text-3xl font-black text-green-600" id="final-score">0</div>
+            </div>
+            <button id="restart-btn" class="w-full bg-green-500 text-white py-3 rounded-xl font-bold shadow-md hover:bg-green-600 transition-colors text-lg">
+                Gioca Ancora <i class="fas fa-redo ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Database delle frasi da analizzare
+        // Ogni frase è un array di "pezzi" logici.
+        // Ogni pezzo ha il testo (che può contenere più parole) e il ruolo logico corretto.
+        const sentencesDatabase = [
+            // Livello 1: Soggetto, Predicato, Oggetto
+            [
+                { text: "Il gatto", role: "Soggetto" },
+                { text: "insegue", role: "Predicato Verbale" },
+                { text: "il topo", role: "Complemento Oggetto" }
+            ],
+            [
+                { text: "La mamma", role: "Soggetto" },
+                { text: "ha preparato", role: "Predicato Verbale" },
+                { text: "una torta", role: "Complemento Oggetto" },
+                { text: "deliziosa", role: "Attributo/Apposizione" }
+            ],
+            [
+                { text: "Marco", role: "Soggetto" },
+                { text: "è", role: "Predicato Nominale" },
+                { text: "un bravo studente", role: "Predicato Nominale" } // Copula + Nome del predicato spesso analizzati insieme o separati. Qui li consideriamo uniti per semplicità iniziale.
+            ],
+            // Livello 2: Complementi Comuni (Specificazione, Termine, Luogo, Tempo)
+            [
+                { text: "Ieri", role: "Complemento di Tempo" },
+                { text: "io", role: "Soggetto" }, // Soggetto sottinteso esplicitato per il gioco
+                { text: "sono andato", role: "Predicato Verbale" },
+                { text: "al cinema", role: "Complemento di Luogo" },
+                { text: "con i miei amici", role: "Altro Complemento" } // Compagnia
+            ],
+            [
+                { text: "Il libro", role: "Soggetto" },
+                { text: "di storia", role: "Complemento di Specificazione" },
+                { text: "è", role: "Predicato Verbale" }, // Qui 'è' sta per 'si trova'
+                { text: "sul tavolo", role: "Complemento di Luogo" }
+            ],
+            [
+                { text: "La nonna", role: "Soggetto" },
+                { text: "ha regalato", role: "Predicato Verbale" },
+                { text: "un maglione", role: "Complemento Oggetto" },
+                { text: "a Luca", role: "Complemento di Termine" }
+            ],
+            // Livello 3: Misti
+            [
+                { text: "Il treno", role: "Soggetto" },
+                { text: "per Roma", role: "Altro Complemento" }, // Moto a luogo / Destinazione
+                { text: "partirà", role: "Predicato Verbale" },
+                { text: "alle ore otto", role: "Complemento di Tempo" }
+            ],
+            [
+                { text: "Con molta pazienza", role: "Complemento di Modo" },
+                { text: "l'insegnante", role: "Soggetto" },
+                { text: "spiegò", role: "Predicato Verbale" },
+                { text: "la lezione", role: "Complemento Oggetto" },
+                { text: "agli alunni", role: "Complemento di Termine" }
+            ],
+            [
+                { text: "Il ladro", role: "Soggetto" },
+                { text: "ha aperto", role: "Predicato Verbale" },
+                { text: "la porta", role: "Complemento Oggetto" },
+                { text: "con un grimaldello", role: "Complemento di Mezzo" }
+            ]
+        ];
+
+        // Variabili di stato del gioco
+        let currentSentenceIndex = 0;
+        let currentSentenceTokens = []; // Manterrà traccia dello stato di ogni elemento della frase attuale
+        let selectedTokenIndices = []; // Indici dei token attualmente selezionati dall'utente
+        let score = 0;
+        let correctAnalysesInCurrentSentence = 0;
+
+        // Elementi DOM
+        const sentenceContainer = document.getElementById('sentence-container');
+        const categoryButtons = document.querySelectorAll('.category-btn');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const clearSelectionBtn = document.getElementById('clear-selection-btn');
+        const nextSentenceBtn = document.getElementById('next-sentence-btn');
+        const scoreDisplay = document.getElementById('score-display');
+        const levelDisplay = document.getElementById('level-display');
+        const modal = document.getElementById('level-complete-modal');
+        const modalContent = document.getElementById('modal-content');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+
+        
+        // Inizializza il gioco
+        function initGame() {
+            currentSentenceIndex = 0;
+            score = 0;
+            updateScoreDisplay();
+            loadSentence(currentSentenceIndex);
+            modal.classList.add('hidden');
+            modal.classList.remove('opacity-100');
+        }
+
+        // Carica una frase dal database
+        function loadSentence(index) {
+            if (index >= sentencesDatabase.length) {
+                showLevelComplete();
+                return;
+            }
+
+            const sentenceData = sentencesDatabase[index];
+            currentSentenceTokens = sentenceData.map((part, i) => ({
+                id: i,
+                text: part.text,
+                correctRole: part.role,
+                isAnalyzed: false,
+                assignedRole: null
+            }));
+
+            // Rimescola l'ordine dei token visualizzati per non renderlo troppo facile se si impara a memoria
+            // NOTA: Per l'analisi logica base è meglio mantenere l'ordine della frase. Disabilito lo shuffle.
+            // currentSentenceTokens.sort(() => Math.random() - 0.5);
+
+            correctAnalysesInCurrentSentence = 0;
+            selectedTokenIndices = [];
+            
+            updateLevelDisplay();
+            renderSentence();
+            updateControlsState();
+            hideFeedback();
+            nextSentenceBtn.classList.add('hidden');
+        }
+
+        // Renderizza la frase a schermo
+        function renderSentence() {
+            sentenceContainer.innerHTML = '';
+            
+            currentSentenceTokens.forEach((token, index) => {
+                const tokenEl = document.createElement('div');
+                tokenEl.className = 'word-token flex flex-col items-center';
+                tokenEl.dataset.index = index;
+                
+                // Testo principale
+                const textSpan = document.createElement('span');
+                textSpan.textContent = token.text;
+                tokenEl.appendChild(textSpan);
+
+                // Etichetta ruolo (inizialmente vuota o nascosta)
+                const roleLabel = document.createElement('span');
+                roleLabel.className = 'assigned-label text-transparent'; // Invisibile all'inizio
+                roleLabel.textContent = '???';
+                tokenEl.appendChild(roleLabel);
+
+                // Aggiungi event listener se non è già stato analizzato
+                if (!token.isAnalyzed) {
+                    tokenEl.addEventListener('click', () => toggleSelection(index));
+                } else {
+                    // Stile per token già analizzati
+                    tokenEl.classList.add('correct');
+                    roleLabel.classList.remove('text-transparent');
+                    roleLabel.textContent = token.assignedRole;
+                    // Colore testo specifico in base al ruolo (opzionale per estetica)
+                    roleLabel.style.color = getRoleColor(token.assignedRole);
+                }
+
+                // Stile se selezionato
+                if (selectedTokenIndices.includes(index)) {
+                    tokenEl.classList.add('selected');
+                }
+
+                sentenceContainer.appendChild(tokenEl);
+            });
+        }
+
+
+        // Gestisce la selezione/deselezione di un pezzo di frase
+        function toggleSelection(index) {
+            const token = currentSentenceTokens[index];
+            if (token.isAnalyzed) return; // Non si può selezionare un token già risolto
+
+            const selectedIndexPosition = selectedTokenIndices.indexOf(index);
+            
+            if (selectedIndexPosition > -1) {
+                // Selezionato -> Deseleziona
+                selectedTokenIndices.splice(selectedIndexPosition, 1);
+            } else {
+                // Non selezionato -> Seleziona (permettiamo la selezione multipla anche se per ora ogni pezzo ha un ruolo)
+                // Se vogliamo forzare la selezione singola per semplificare:
+                selectedTokenIndices = [index]; 
+                
+                // Se volessimo selezione multipla: selectedTokenIndices.push(index);
+            }
+
+            renderSentence();
+            updateControlsState();
+            hideFeedback();
+        }
+
+        // Deseleziona tutto
+        function clearSelection() {
+            selectedTokenIndices = [];
+            renderSentence();
+            updateControlsState();
+        }
+
+        // Aggiorna lo stato dei bottoni
+        function updateControlsState() {
+            const hasSelection = selectedTokenIndices.length > 0;
+            
+            // Abilita/Disabilita categorie
+            categoryButtons.forEach(btn => {
+                btn.disabled = !hasSelection;
+            });
+
+            // Mostra/Nascondi bottone deseleziona
+            if (hasSelection) {
+                clearSelectionBtn.classList.remove('hidden');
+            } else {
+                clearSelectionBtn.classList.add('hidden');
+            }
+        }
+
+        // Gestisce il click su una categoria logica
+        function handleCategoryClick(event) {
+            if (selectedTokenIndices.length === 0) return;
+
+            const selectedRole = event.currentTarget.dataset.role;
+            const targetTokenIndex = selectedTokenIndices[0]; // Assumendo selezione singola
+            const targetToken = currentSentenceTokens[targetTokenIndex];
+
+            if (selectedRole === targetToken.correctRole) {
+                handleCorrectAnswer(targetTokenIndex, selectedRole);
+            } else {
+                handleWrongAnswer(targetTokenIndex);
+            }
+        }
+
+
+        function handleCorrectAnswer(tokenIndex, role) {
+            const token = currentSentenceTokens[tokenIndex];
+            token.isAnalyzed = true;
+            token.assignedRole = role;
+            
+            score += 10;
+            correctAnalysesInCurrentSentence++;
+            
+            updateScoreDisplay();
+            showFeedback('Corretto! 🎉', 'text-green-600', 'bg-green-100');
+            
+            // Effetto visivo di successo (gestito parzialmente in renderSentence tramite la classe 'correct')
+            
+            selectedTokenIndices = []; // Pulisci selezione
+            renderSentence();
+            updateControlsState();
+
+            // Controlla se la frase è completata
+            if (correctAnalysesInCurrentSentence === currentSentenceTokens.length) {
+                setTimeout(handleSentenceComplete, 1000);
+            }
+        }
+
+        function handleWrongAnswer(tokenIndex) {
+            // Penalità punteggio (opzionale)
+            score = Math.max(0, score - 2); 
+            updateScoreDisplay();
+
+            showFeedback('Riprova! 😕', 'text-red-600', 'bg-red-100');
+            
+            // Aggiungi classe errore per animazione
+            const tokenEls = sentenceContainer.children;
+            const el = tokenEls[tokenIndex];
+            el.classList.add('error');
+            
+            // Rimuovi classe dopo l'animazione
+            setTimeout(() => {
+                el.classList.remove('error');
+                // Deseleziona in caso di errore per forzare a ripensare? (Opzionale, lo lascio selezionato per comodità)
+            }, 400);
+        }
+
+        function showFeedback(text, textColorClass, bgColorClass) {
+            feedbackMessage.textContent = text;
+            feedbackMessage.className = `h-8 mt-4 font-bold text-lg rounded-full px-6 py-1 inline-block transition-all duration-300 opacity-100 transform scale-100 ${textColorClass} ${bgColorClass}`;
+        }
+
+        function hideFeedback() {
+            feedbackMessage.className = 'h-8 mt-4 font-bold text-lg transition-all duration-300 opacity-0 transform scale-95';
+        }
+
+        function handleSentenceComplete() {
+            showFeedback('Frase completata! Ottimo lavoro! 🌟', 'text-indigo-600', 'bg-indigo-100');
+            nextSentenceBtn.classList.remove('hidden');
+            categoryButtons.forEach(btn => btn.disabled = true); // Disabilita tasti
+        }
+
+        function nextSentence() {
+            currentSentenceIndex++;
+            loadSentence(currentSentenceIndex);
+        }
+
+        function showLevelComplete() {
+            finalScoreDisplay.textContent = score;
+            modal.classList.remove('hidden');
+            // Timeout per permettere al browser di renderizzare il display:block prima di transizionare l'opacità
+            setTimeout(() => {
+                modal.classList.add('opacity-100');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 50);
+        }
+
+        // Funzione helper per ottenere colori basati sul ruolo
+        function getRoleColor(role) {
+            const colors = {
+                'Soggetto': '#4f46e5', // indigo
+                'Predicato Verbale': '#ef4444', // red
+                'Predicato Nominale': '#e11d48', // rose
+                'Complemento Oggetto': '#3b82f6', // blue
+                'Complemento di Specificazione': '#f59e0b', // amber
+                'Complemento di Termine': '#22c55e', // green
+                'Complemento di Luogo': '#14b8a6', // teal
+                'Complemento di Tempo': '#a855f7', // purple
+                'Attributo/Apposizione': '#f97316', // orange
+                'Complemento di Mezzo': '#0891b2', // cyan
+                'Complemento di Modo': '#c026d3', // fuchsia
+                'Altro Complemento': '#64748b' // slate
+            };
+            return colors[role] || '#15803d'; // default dark green
+        }
+
+        
+        function updateScoreDisplay() {
+            // Animazione semplice del punteggio
+            scoreDisplay.parentElement.classList.add('scale-110', 'text-white');
+            setTimeout(() => {
+                scoreDisplay.parentElement.classList.remove('scale-110', 'text-white');
+            }, 200);
+            scoreDisplay.textContent = score;
+        }
+
+        function updateLevelDisplay() {
+            // Calcola il "livello" in base a dove siamo nell'array. (Es. ogni 3 frasi un livello)
+            const level = Math.floor(currentSentenceIndex / 3) + 1;
+            levelDisplay.textContent = level;
+        }
+
+        // Inizializza Event Listeners
+        categoryButtons.forEach(btn => {
+            btn.addEventListener('click', handleCategoryClick);
+        });
+
+        clearSelectionBtn.addEventListener('click', clearSelection);
+        nextSentenceBtn.addEventListener('click', nextSentence);
+        restartBtn.addEventListener('click', initGame);
+
+        // Avvia il gioco al caricamento
+        window.onload = initGame;
+
+    </script>
+</body>
+</html>
